@@ -143,7 +143,7 @@ void UKF::Prediction(double delta_t) {
   // use x_ and find augmented sigma points using augmented process covariance.
   MatrixXd P_aug = MatrixXd(n_x_ + 2, n_x_ + 2);
   P_aug.fill(0.0);
-  P_aug.topLeftCorner(5,5) = P;
+  P_aug.topLeftCorner(5,5) = P_;
   MatrixXd Q = MatrixXd(2,2);
   Q << std_a_*std_a_, 0,
         0,  std_yawdd_*std_yawdd_;
@@ -157,9 +157,9 @@ void UKF::Prediction(double delta_t) {
   x_aug.fill(0.0);
   x_aug.head(5) = x_;
   Xsig_aug.col(0) = x_aug;
-  for (int i = 0; i < n_x; i++) {
-    Xsig_aug.col(i+1)     = x_aug + c * sqrt_P.col(i);
-    Xsig_aug.col(i+1+n_x) = x_aug - c * sqrt_P.col(i);
+  for (int i = 0; i < n_x_; i++) {
+    Xsig_aug.col(i+1)      = x_aug + c * sqrt_P.col(i);
+    Xsig_aug.col(i+1+n_x_) = x_aug - c * sqrt_P.col(i);
   }
 
   // predict all sigma points to next state px, py using velocity, delta_t, and yaw and yaw rate
@@ -169,7 +169,7 @@ void UKF::Prediction(double delta_t) {
   VectorXd state_transition = VectorXd(5);
   
   //predict sigma points
-  for(int i=0;i<2*n_aug+1;i++) {
+  for(int i=0;i<2*n_aug_+1;i++) {
       process_noise.fill(0.0);
       // noise calculation 
       double vk = Xsig_aug.col(i)(2);
@@ -211,7 +211,7 @@ void UKF::Prediction(double delta_t) {
   // predict covariance matrix for process by finding mean variance of each of the 
   // sigma points from mean
   P_.fill(0.0);
-  for(int i=0;i<(2*n_aug+1);i++) {
+  for(int i=0;i<(2*n_aug_+1);i++) {
       VectorXd diff = Xsig_pred_.col(i) - x_;
       P_ += weights_(i)*(diff*diff.transpose());
   }
@@ -231,7 +231,7 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
   You'll also need to calculate the lidar NIS.
   */
 
-  VectorXd z = meas_package.head(2);
+  VectorXd z = meas_package.raw_measurements_.head(2);
   MatrixXd Zsig = MatrixXd(2, 2*n_aug_+1);
   for(int i=0; i<(2*n_aug_+1);i++) {
     Zsig.col(i) = Xsig_pred_.col(i).head(2);  
@@ -244,7 +244,7 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
   //   VectorXd diff = Zsig.col(i) - z_pred;
   //   S += weights_(i)*(diff*diff.transpose());
   // }
-  MatrixXd S = P_.head(2,2);
+  MatrixXd S = P_.topLeftCorner(2,2);
   S += L_;
 
   MatrixXd K = P_*S.inverse();
@@ -268,7 +268,7 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
 
   You'll also need to calculate the radar NIS.
   */
-  VectorXd z = meas_package.head(3);
+  VectorXd z = meas_package.raw_measurements_.head(3);
 
   MatrixXd Zsig = MatrixXd(3, 2*n_aug_+1);
   for(int i=0;i<(2*n_aug_+1);i++) {
@@ -277,11 +277,11 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
 
   // find weighted mean of all polar converted sigma points
   //z_pred = tools_.convert_to_polar(x_);
-  VectorXd z_pred = weights.transpose()*Zsig.transpose();
+  VectorXd z_pred = weights_.transpose()*Zsig.transpose();
 
   MatrixXd S = MatrixXd(3, 3);
   S.fill(0.0);
-  for(int i=0;i<(2*n_aug+1);i++) {
+  for(int i=0;i<(2*n_aug_+1);i++) {
       VectorXd diff = Zsig.col(i) - z_pred;
       S += weights_(i)*(diff*diff.transpose());
   }
@@ -289,7 +289,7 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
   S += R_;
 
   // cross correlation between cartesian and polar measurements
-  MatrixXd Tc = MatrixXd(n_x, n_z);
+  MatrixXd Tc = MatrixXd(n_x_, 3);
 
   //calculate cross correlation matrix
   for(int i=0; i<(2*n_aug_ + 1); i++) {

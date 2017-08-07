@@ -22,13 +22,14 @@ VectorXd Tools::CalculateRMSE(const vector<VectorXd> &estimations,
     
     for(int i=0; i < estimations.size(); i++) {
       VectorXd diff = estimations[i] - ground_truth[i];
-      sq_diff += diff.square();
+      VectorXd residual = (diff.array()*diff.array());
+      sq_diff += residual;
     }
 
     // find mean
     VectorXd sq_diff_mean = sq_diff/estimations.size();
-
-    return sq_diff_mean.sqrt();
+    VectorXd rmse = sq_diff_mean.array().sqrt();
+    return rmse;
 }
 
 VectorXd convert_to_cartesian(const VectorXd& polar) {
@@ -45,12 +46,12 @@ VectorXd convert_to_polar(const VectorXd& cartesian) {
   double py = cartesian(1);
   double v = cartesian(2);
   double yaw = cartesian(3);
-  
+
   double rho = sqrt(px*px+ py*py);
   double phi = atan2(py, px);
   while(phi < -M_PI && phi > M_PI) phi < 0 ? phi += 2*M_PI : phi -= 2*M_PI;
 
-  double rhodot = (px*cos(yaw)*v + py*sin(yaw)*v)/rho;
+  double rhod = (px*cos(yaw)*v + py*sin(yaw)*v)/rho;
 
   VectorXd polar = VectorXd(3);
   polar << rho, phi, rhod;
