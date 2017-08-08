@@ -74,6 +74,9 @@ public:
 
   MatrixXd L_;
 
+  vector<double> nis_sample_laser_;
+  vector<double> nis_sample_radar_;
+
   /**
    * Constructor
    */

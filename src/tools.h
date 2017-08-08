@@ -28,6 +28,9 @@ public:
 
   VectorXd convert_to_cartesian(const VectorXd& polar);
 
+  double phi_range(double phi);
+  
+  double percentile_check(const vector<double> &dist, double percentile_value);
 };
 
 #endif /* TOOLS_H_ */

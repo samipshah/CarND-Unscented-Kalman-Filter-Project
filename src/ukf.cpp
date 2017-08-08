@@ -7,6 +7,8 @@ using Eigen::MatrixXd;
 using Eigen::VectorXd;
 using std::vector;
 
+bool debug = true;
+
 /**
  * Initializes Unscented Kalman filter
  */
@@ -24,10 +26,10 @@ UKF::UKF() {
   P_ = MatrixXd(5, 5);
 
   // Process noise standard deviation longitudinal acceleration in m/s^2
-  std_a_ = 1; // may be less than 1 for a bicyclist
+  std_a_ = 0.5; // may be less than 1 for a bicyclist
 
   // Process noise standard deviation yaw acceleration in rad/s^2
-  std_yawdd_ = 1; 
+  std_yawdd_ = 0.1; 
 
   // Laser measurement noise standard deviation position1 in m
   std_laspx_ = 0.15;
@@ -44,14 +46,14 @@ UKF::UKF() {
   // Radar measurement noise standard deviation radius change in m/s
   std_radrd_ = 0.3;
 
-  Xsig_pred_ = MatrixXd(5, 2*n_aug_+1);
-
-
   n_x_ = 5;
 
   n_aug_ = 7; // added process noise elements
 
-  lambda_ = 3 - n_x_;
+  lambda_ = 3 - n_aug_;
+
+  Xsig_pred_ = MatrixXd(5, 2*n_aug_+1);
+  Xsig_pred_.fill(0.0);
 
   weights_ = VectorXd(2*n_aug_+1);
   weights_(0) = lambda_/(lambda_+n_aug_);
@@ -60,11 +62,13 @@ UKF::UKF() {
   }
 
   R_ = MatrixXd(3,3);
+  R_.fill(0.0);
   R_(0,0) = std_radr_*std_radr_;
   R_(1,1) = std_radphi_*std_radphi_;
   R_(2,2) = std_radrd_*std_radrd_;
 
   L_ = MatrixXd(2,2);
+  L_.fill(0.0);
   L_(0,0) = std_laspx_*std_laspx_;
   L_(1,1) = std_laspy_*std_laspy_;
 }
@@ -92,8 +96,8 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
     x_.fill(0.0);
     x_.head(2) = cartesian;
     x_(2) = 3; // approx 3m/s velocity
-    x_(3) = 3.14; // assuming pi rad horizontal
-    x_(4) = -1; // assuming it takes quarter turn in 3 s
+    x_(3) = 0; 
+    x_(4) = 0.5; 
 
     // initialize P_
     P_.fill(0.0);
@@ -107,7 +111,8 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
   }
 
   // prediction
-  long long delta_t = time_us_ - meas_package.timestamp_;
+  double delta_t = (meas_package.timestamp_ - time_us_)/1000000.0; // convert to seconds
+  time_us_ = meas_package.timestamp_;
   Prediction(delta_t);
 
   // check sensor type
@@ -144,22 +149,20 @@ void UKF::Prediction(double delta_t) {
   MatrixXd P_aug = MatrixXd(n_x_ + 2, n_x_ + 2);
   P_aug.fill(0.0);
   P_aug.topLeftCorner(5,5) = P_;
-  MatrixXd Q = MatrixXd(2,2);
-  Q << std_a_*std_a_, 0,
-        0,  std_yawdd_*std_yawdd_;
-  P_aug.bottomRightCorner(2,2) = Q;
+  P_aug(5,5) = std_a_*std_a_;
+  P_aug(6,6) = std_yawdd_*std_yawdd_;
 
   MatrixXd sqrt_P = P_aug.llt().matrixL();
-  double c = sqrt(lambda_ + n_x_);
+  double c = sqrt(lambda_ + n_aug_);
 
   MatrixXd Xsig_aug  = MatrixXd(7, 2*n_aug_ + 1);
   VectorXd x_aug = VectorXd(n_x_ + 2);
   x_aug.fill(0.0);
   x_aug.head(5) = x_;
   Xsig_aug.col(0) = x_aug;
-  for (int i = 0; i < n_x_; i++) {
+  for (int i = 0; i < n_aug_; i++) {
     Xsig_aug.col(i+1)      = x_aug + c * sqrt_P.col(i);
-    Xsig_aug.col(i+1+n_x_) = x_aug - c * sqrt_P.col(i);
+    Xsig_aug.col(i+1+n_aug_) = x_aug - c * sqrt_P.col(i);
   }
 
   // predict all sigma points to next state px, py using velocity, delta_t, and yaw and yaw rate
@@ -169,7 +172,7 @@ void UKF::Prediction(double delta_t) {
   VectorXd state_transition = VectorXd(5);
   
   //predict sigma points
-  for(int i=0;i<2*n_aug_+1;i++) {
+  for(int i=0; i<(2*n_aug_+1); i++) {
       process_noise.fill(0.0);
       // noise calculation 
       double vk = Xsig_aug.col(i)(2);
@@ -177,20 +180,20 @@ void UKF::Prediction(double delta_t) {
       double yawdk = Xsig_aug.col(i)(4);
       double vak = Xsig_aug.col(i)(5);
       double vyawddk = Xsig_aug.col(i)(6);
-      if (vak != 0) {
+      if (vak != 0.0) {
           process_noise(2) = delta_t*vak;
           process_noise(0) = .5*sq_delta_t*cos(yawk)*vak;
           process_noise(1) = .5*sq_delta_t*sin(yawk)*vak;
       }
       
-      if (vyawddk != 0) {
+      if (vyawddk != 0.0) {
           process_noise(3) = .5*sq_delta_t*vyawddk;
           process_noise(4) = delta_t*vyawddk;
       }
 
       // state transition vector
       state_transition.fill(0.0);
-      if (yawdk != 0) {
+      if (fabs(yawdk) > 0.001) {
         state_transition(0) = (vk/yawdk)*(sin(yawk+yawdk*delta_t)-sin(yawk));
         state_transition(1) = (vk/yawdk)*(-cos(yawk+yawdk*delta_t)+cos(yawk));
         state_transition(3) = yawdk*delta_t;
@@ -198,8 +201,9 @@ void UKF::Prediction(double delta_t) {
         state_transition(0) = vk*cos(yawk)*delta_t;
         state_transition(1) = vk*sin(yawk)*delta_t;
       }
-      
+
       Xsig_pred_.col(i) = Xsig_aug.col(i).head(5) + state_transition + process_noise;
+      Xsig_pred_.col(i)(4) = tools_.phi_range(Xsig_pred_.col(i)(4));
   }
 
   // calculate weights and find mean from these predicted sigma points for the one next
@@ -207,14 +211,17 @@ void UKF::Prediction(double delta_t) {
   
   // predict state by finding mean of all the sigma points prediction
   x_ = weights_.transpose()*Xsig_pred_.transpose();
+  x_(4) = tools_.phi_range(x_(4));
 
   // predict covariance matrix for process by finding mean variance of each of the 
   // sigma points from mean
   P_.fill(0.0);
   for(int i=0;i<(2*n_aug_+1);i++) {
       VectorXd diff = Xsig_pred_.col(i) - x_;
+      diff(3) = tools_.phi_range(diff(3));
       P_ += weights_(i)*(diff*diff.transpose());
   }
+
 }
 
 /**
@@ -244,15 +251,36 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
   //   VectorXd diff = Zsig.col(i) - z_pred;
   //   S += weights_(i)*(diff*diff.transpose());
   // }
-  MatrixXd S = P_.topLeftCorner(2,2);
+  // MatrixXd S = P_.topLeftCorner(2,2);
+
+  MatrixXd S = MatrixXd(2,2);
+  S.fill(0.0);
+  // cross correlation between cartesian and polar measurements
+  MatrixXd Tc = MatrixXd(n_x_, 2);
+  Tc.fill(0.0);
+
+  //calculate cross correlation matrix
+  for(int i=0; i<(2*n_aug_ + 1); i++) {
+    VectorXd x_diff = Xsig_pred_.col(i) - x_;
+    x_diff(3) = tools_.phi_range(x_diff(3));
+
+    VectorXd z_diff = Zsig.col(i) - z_pred;
+    z_diff(1) = tools_.phi_range(z_diff(1));
+
+    S += weights_(i)*(z_diff*z_diff.transpose());
+    Tc += weights_(i)*(x_diff*z_diff.transpose());
+  }
   S += L_;
 
-  MatrixXd K = P_*S.inverse();
+  MatrixXd K = Tc*S.inverse();
 
-  x_ = x_ + K*(z - z_pred);
+  VectorXd zdiff = z - z_pred;
+  x_ = x_ + K*(zdiff);
   P_ = P_ + K*S*K.transpose();
 
   // calculate Laser NIS
+  double nisl = zdiff.transpose()*S.inverse()*zdiff;
+  nis_sample_laser_.push_back(nisl);
 }
 
 /**
@@ -276,34 +304,39 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
   }
 
   // find weighted mean of all polar converted sigma points
-  //z_pred = tools_.convert_to_polar(x_);
   VectorXd z_pred = weights_.transpose()*Zsig.transpose();
+  z_pred(1) = tools_.phi_range(z_pred(1));
+  VectorXd compare = tools_.convert_to_polar(x_);
 
-  MatrixXd S = MatrixXd(3, 3);
+  int n_z = 3;
+  // calculate S matrix
+  MatrixXd S = MatrixXd(n_z, n_z);
   S.fill(0.0);
-  for(int i=0;i<(2*n_aug_+1);i++) {
-      VectorXd diff = Zsig.col(i) - z_pred;
-      S += weights_(i)*(diff*diff.transpose());
-  }
-
-  S += R_;
 
   // cross correlation between cartesian and polar measurements
-  MatrixXd Tc = MatrixXd(n_x_, 3);
+  MatrixXd Tc = MatrixXd(n_x_, n_z);
+  Tc.fill(0.0);
+  for(int i=0;i<(2*n_aug_+1);i++) {
+      VectorXd z_diff = Zsig.col(i) - z_pred;
+      z_diff(1) = tools_.phi_range(z_diff(1));
+      S += weights_(i)*(z_diff*z_diff.transpose());
 
-  //calculate cross correlation matrix
-  for(int i=0; i<(2*n_aug_ + 1); i++) {
-    VectorXd state_diff = Xsig_pred_.col(i) - x_;
-    VectorXd measurement_diff = Zsig.col(i) - z_pred;
-    Tc += weights_(i)*(state_diff*measurement_diff.transpose());
+      VectorXd x_diff = Xsig_pred_.col(i) - x_;
+      x_diff(3) = tools_.phi_range(x_diff(3)); 
+      Tc += weights_(i)*(x_diff*z_diff.transpose());
   }
+  S += R_; // additive noise
 
   // find kalman gain
   MatrixXd K = Tc*S.inverse();
 
   // udpate state and covariances using the difference in predicted and observed
-  x_ = x_ + K*(z - z_pred);
+  VectorXd zdiff = z - z_pred;
+  zdiff(1) = tools_.phi_range(zdiff(1));
+  x_ = x_ + K*(zdiff);
   P_ = P_ - K*S*K.transpose();
 
   // calculate radar NIS
+  double nisr = zdiff.transpose()*S.inverse()*zdiff;
+  nis_sample_radar_.push_back(nisr);
 }
