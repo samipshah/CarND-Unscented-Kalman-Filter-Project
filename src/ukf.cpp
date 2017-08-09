@@ -94,10 +94,11 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
     }
     
     x_.fill(0.0);
+    if ( fabs(cartesian(0)) < 0.001 && fabs(cartesian(1)) < 0.001 ) {
+      cartesian(0) = 0.001;    
+      cartesian(1) = 0.001;    
+    }
     x_.head(2) = cartesian;
-    x_(2) = 1; // approx 1m/s velocity
-    x_(3) = 1; 
-    x_(4) = 0.1; 
 
     // initialize P_
     P_.fill(0.0);
@@ -113,6 +114,11 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
   // prediction
   double delta_t = (meas_package.timestamp_ - time_us_)/1000000.0; // convert to seconds
   time_us_ = meas_package.timestamp_;
+  double step = 0.1;
+  while (delta_t > 0.2) {
+      Prediction(step);
+      delta_t -= step;
+  }
   Prediction(delta_t);
 
   // check sensor type
@@ -264,7 +270,7 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
 
   VectorXd zdiff = z - z_pred;
   x_ = x_ + K*(zdiff);
-  P_ = P_ + K*S*K.transpose();
+  P_ = P_ - K*S*K.transpose();
 
   // calculate Laser NIS
   double nisl = zdiff.transpose()*S.inverse()*zdiff;

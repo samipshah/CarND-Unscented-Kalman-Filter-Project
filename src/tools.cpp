@@ -66,10 +66,20 @@ VectorXd Tools::convert_to_polar(const VectorXd& cartesian) {
   double yaw = cartesian(3);
 
   double rho = sqrt(px*px+ py*py);
-  double phi = atan2(py, px);
-  double rhod = (px*cos(yaw)*v + py*sin(yaw)*v)/rho;
-
+  double phi = 0;
+  double rhod = 0.0;
   VectorXd polar = VectorXd(3);
+  if (fabs(px) < 0.0001 && fabs(py) < 0.0001) {
+    polar << rho, phi, rhod;
+    return polar;
+  }
+  phi = atan2(py, px);
+  if (fabs(rho) < 0.0001) {
+    polar << rho, phi, rhod;
+    return polar;
+  }
+  rhod = (px*cos(yaw)*v + py*sin(yaw)*v)/rho;
+
   polar << rho, phi, rhod;
   return polar;
 }
