@@ -95,7 +95,7 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
     
     x_.fill(0.0);
     x_.head(2) = cartesian;
-    x_(2) = 1; // approx 3m/s velocity
+    x_(2) = 1; // approx 1m/s velocity
     x_(3) = 1; 
     x_(4) = 0.1; 
 
