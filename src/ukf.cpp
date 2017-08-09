@@ -13,6 +13,7 @@ bool debug = true;
  * Initializes Unscented Kalman filter
  */
 UKF::UKF() {
+  is_initialized_ = false;
   // if this is false, laser measurements will be ignored (except during init)
   use_laser_ = true;
 
@@ -101,10 +102,7 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
     x_.head(2) = cartesian;
 
     // initialize P_
-    P_.fill(0.0);
-    for (int i=0; i<x_.size(); i++) {
-      P_(i,i) = 1;
-    }
+    P_ = MatrixXd::Identity(5,5);
 
     time_us_ = meas_package.timestamp_;
     is_initialized_ = true;
@@ -114,11 +112,11 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
   // prediction
   double delta_t = (meas_package.timestamp_ - time_us_)/1000000.0; // convert to seconds
   time_us_ = meas_package.timestamp_;
-  double step = 0.1;
-  while (delta_t > 0.2) {
-      Prediction(step);
-      delta_t -= step;
-  }
+  // double step = 0.1;
+  // while (delta_t > 0.2) {
+  //     Prediction(step);
+  //     delta_t -= step;
+  // }
   Prediction(delta_t);
 
   // check sensor type
@@ -181,11 +179,11 @@ void UKF::Prediction(double delta_t) {
   for(int i=0; i<(2*n_aug_+1); i++) {
       process_noise.fill(0.0);
       // noise calculation 
-      double vk = Xsig_aug.col(i)(2);
-      double yawk = Xsig_aug.col(i)(3);
-      double yawdk = Xsig_aug.col(i)(4);
-      double vak = Xsig_aug.col(i)(5);
-      double vyawddk = Xsig_aug.col(i)(6);
+      const double vk = Xsig_aug.col(i)(2);
+      const double yawk = Xsig_aug.col(i)(3);
+      const double yawdk = Xsig_aug.col(i)(4);
+      const double vak = Xsig_aug.col(i)(5);
+      const double vyawddk = Xsig_aug.col(i)(6);
       if (vak != 0.0) {
           process_noise(2) = delta_t*vak;
           process_noise(0) = .5*sq_delta_t*cos(yawk)*vak;
