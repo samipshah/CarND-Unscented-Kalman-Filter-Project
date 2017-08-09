@@ -24,7 +24,6 @@ double Tools::percentile_check(const vector<double> &dist, double percentile_val
 VectorXd Tools::CalculateRMSE(const vector<VectorXd> &estimations,
                               const vector<VectorXd> &ground_truth) {
     
-    std::cout << "calculate rmse" << std::endl;
     VectorXd sq_diff = VectorXd(4); // px, py, vx, vy
     sq_diff.fill(0.0);
 
@@ -48,7 +47,6 @@ VectorXd Tools::CalculateRMSE(const vector<VectorXd> &estimations,
     VectorXd sq_diff_mean = sq_diff/length;
     VectorXd rmse = sq_diff_mean.array().sqrt();
 
-    std::cout << "done calculating rmse" << std::endl;
     return rmse;
 }
 
@@ -68,7 +66,7 @@ VectorXd Tools::convert_to_polar(const VectorXd& cartesian) {
   double yaw = cartesian(3);
 
   double rho = sqrt(px*px+ py*py);
-  double phi = phi_range(atan2(py, px));
+  double phi = atan2(py, px);
   double rhod = (px*cos(yaw)*v + py*sin(yaw)*v)/rho;
 
   VectorXd polar = VectorXd(3);
@@ -78,7 +76,8 @@ VectorXd Tools::convert_to_polar(const VectorXd& cartesian) {
 
 double Tools::phi_range(double phi) {
   double b = phi;
-  while(phi < -M_PI || phi > M_PI) phi < 0 ? phi += 2*M_PI : phi -= 2*M_PI;
+  while(phi < -M_PI) phi += 2*M_PI;
+  while(phi > M_PI) phi -= 2*M_PI;
   if (fabs(b - phi) > 0.001) {
     std::cout << "b: " << b << " a: " << phi << std::endl;
   }

@@ -26,10 +26,10 @@ UKF::UKF() {
   P_ = MatrixXd(5, 5);
 
   // Process noise standard deviation longitudinal acceleration in m/s^2
-  std_a_ = 0.5; // may be less than 1 for a bicyclist
+  std_a_ = 2;
 
   // Process noise standard deviation yaw acceleration in rad/s^2
-  std_yawdd_ = 0.1; 
+  std_yawdd_ = .4; 
 
   // Laser measurement noise standard deviation position1 in m
   std_laspx_ = 0.15;
@@ -161,7 +161,7 @@ void UKF::Prediction(double delta_t) {
   x_aug.head(5) = x_;
   Xsig_aug.col(0) = x_aug;
   for (int i = 0; i < n_aug_; i++) {
-    Xsig_aug.col(i+1)      = x_aug + c * sqrt_P.col(i);
+    Xsig_aug.col(i+1)        = x_aug + c * sqrt_P.col(i);
     Xsig_aug.col(i+1+n_aug_) = x_aug - c * sqrt_P.col(i);
   }
 
@@ -203,7 +203,6 @@ void UKF::Prediction(double delta_t) {
       }
 
       Xsig_pred_.col(i) = Xsig_aug.col(i).head(5) + state_transition + process_noise;
-      Xsig_pred_.col(i)(4) = tools_.phi_range(Xsig_pred_.col(i)(4));
   }
 
   // calculate weights and find mean from these predicted sigma points for the one next
@@ -211,7 +210,6 @@ void UKF::Prediction(double delta_t) {
   
   // predict state by finding mean of all the sigma points prediction
   x_ = weights_.transpose()*Xsig_pred_.transpose();
-  x_(4) = tools_.phi_range(x_(4));
 
   // predict covariance matrix for process by finding mean variance of each of the 
   // sigma points from mean
@@ -245,14 +243,6 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
   }
   VectorXd z_pred = x_.head(2);
 
-  // MatrixXd S = MatrixXd(2,2);
-  // S.fill(0.0);
-  // for(int i=0; i<(2*n_aug_+1); i++) {
-  //   VectorXd diff = Zsig.col(i) - z_pred;
-  //   S += weights_(i)*(diff*diff.transpose());
-  // }
-  // MatrixXd S = P_.topLeftCorner(2,2);
-
   MatrixXd S = MatrixXd(2,2);
   S.fill(0.0);
   // cross correlation between cartesian and polar measurements
@@ -265,8 +255,6 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
     x_diff(3) = tools_.phi_range(x_diff(3));
 
     VectorXd z_diff = Zsig.col(i) - z_pred;
-    z_diff(1) = tools_.phi_range(z_diff(1));
-
     S += weights_(i)*(z_diff*z_diff.transpose());
     Tc += weights_(i)*(x_diff*z_diff.transpose());
   }
@@ -304,9 +292,7 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
   }
 
   // find weighted mean of all polar converted sigma points
-  VectorXd z_pred = weights_.transpose()*Zsig.transpose();
-  z_pred(1) = tools_.phi_range(z_pred(1));
-  VectorXd compare = tools_.convert_to_polar(x_);
+  VectorXd z_pred = tools_.convert_to_polar(x_);
 
   int n_z = 3;
   // calculate S matrix
